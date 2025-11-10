@@ -12,7 +12,11 @@
   "author": "Google LLC",
   "license": "Apache-2.0",
   "dependencies": {
-    "express": "^4.21.2"
+    "archiver": "^7.0.1",
+    "express": "^4.21.2",
+    "fs": "^0.0.1-security",
+    "multer": "^2.0.2",
+    "path": "^0.12.7"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
