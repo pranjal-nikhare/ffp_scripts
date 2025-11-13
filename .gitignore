@@ -1,0 +1,85 @@
+# Binaries for programs
+*.exe
+*.o
+*.obj
+*.bin
+*.dll
+*.so
+*.dylib
+
+# Compiled source
+*.class
+*.pyc
+*.pyo
+*.pyd
+
+# Logs and databases
+*.log
+*.sql
+*.sqlite
+*.sqlite3
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Icon?
+desktop.ini
+$RECYCLE.BIN/
+
+# Package managers
+node_modules/
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Build artifacts
+dist/
+build/
+out/
+target/
+*.tmp
+temp/
+tmp/
+coverage/
+
+# IDE and Editor files
+.idea/
+.vscode/
+.vs/
+*.iml
+*.iws
+*.ipr
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# Dependency directories
+vendor/
+Pods/
+
+# Environment variables
+.env
+.env.*
+.flaskenv
+
+# Testing
+/.nyc_output
+/junit.xml
+/report/
+
+# Other common files
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+*.bak
+*.orig
+*.swp
+*.swo
