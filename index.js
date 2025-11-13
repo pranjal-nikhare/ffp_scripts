@@ -6,6 +6,7 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import { exec } from 'child_process';
 import crypto from 'crypto';
+import cookieParser from 'cookie-parser';
 
 const app = express();
 const port = 3000;
@@ -15,6 +16,7 @@ const projectRoot = process.cwd();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 const generateSessionToken = () => {
   return crypto.randomBytes(6).toString('hex');
@@ -25,12 +27,10 @@ const scheduleCleanup = (token) => {
   setTimeout(async () => {
     const inputDir = path.join(projectRoot, 'input_files', token);
     const outDir = path.join(projectRoot, 'out', token);
-    const zipPath = path.join(projectRoot, `${token}.zip`);
     
     try {
       await fs.rm(inputDir, { recursive: true, force: true });
       await fs.rm(outDir, { recursive: true, force: true });
-      await fs.unlink(zipPath).catch(() => {}); // Ignore if zip doesn't exist
       console.log(`Cleaned up files for session: ${token}`);
     } catch (error) {
       console.error(`Error cleaning up session ${token}:`, error);
@@ -39,9 +39,20 @@ const scheduleCleanup = (token) => {
 };
 
 app.use((req, res, next) => {
-  // Always generate a new token (no cookie persistence)
-  const token = generateSessionToken();
-  res.cookie('session_token', token, { httpOnly: true });
+  // Check if cookie already exists, if not create a new one
+  let token = req.cookies.session_token;
+  
+  if (!token) {
+    token = generateSessionToken();
+    res.cookie('session_token', token, { 
+      httpOnly: true,
+      maxAge: 10 * 60 * 1000 // 10 minutes
+    });
+    console.log(`Created new session: ${token}`);
+  } else {
+    console.log(`Using existing session: ${token}`);
+  }
+  
   req.session_token = token;
   next();
 });
@@ -214,6 +225,7 @@ app.get('/', (req, res) => {
           background: #2c3e50;
           color: white;
           border-color: #2c3e50;
+          margin-bottom: 8px;
         }
 
         .process-btn:hover {
@@ -223,6 +235,21 @@ app.get('/', (req, res) => {
 
         .process-btn:active {
           background: #1a252f;
+        }
+
+        .reverse-btn {
+          background: #5a6c7d;
+          color: white;
+          border-color: #5a6c7d;
+        }
+
+        .reverse-btn:hover {
+          background: #6c7f91;
+          border-color: #6c7f91;
+        }
+
+        .reverse-btn:active {
+          background: #4a5a6a;
         }
 
         .divider {
@@ -304,6 +331,13 @@ app.get('/', (req, res) => {
           width: 0%;
         }
 
+        .button-description {
+          font-size: 12px;
+          color: #6c757d;
+          margin-bottom: 8px;
+          text-align: left;
+        }
+
         @keyframes fadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
@@ -355,8 +389,17 @@ app.get('/', (req, res) => {
 
         <div class="form-section">
           <div class="form-title">Process Files</div>
+          
+          <div class="button-description">Convert $variable → {variable}</div>
           <form action="/process" method="post">
-            <button type="submit" class="process-btn">Process & Download</button>
+            <input type="hidden" name="mode" value="forward" />
+            <button type="submit" class="process-btn">Process Forward & Download</button>
+          </form>
+
+          <div class="button-description" style="margin-top: 16px;">Convert {variable} → $variable</div>
+          <form action="/process" method="post">
+            <input type="hidden" name="mode" value="reverse" />
+            <button type="submit" class="reverse-btn">Process Reverse & Download</button>
           </form>
         </div>
 
@@ -479,47 +522,68 @@ app.post('/upload', upload.array('files', 25), (req, res) => {
 
 app.post('/process', (req, res) => {
   const token = req.session_token;
+  const mode = req.body.mode || 'forward'; // 'forward' or 'reverse'
   const inputDir = path.join(projectRoot, 'input_files', token);
   const outDir = path.join(projectRoot, 'out', token);
   const runScriptPath = path.join(projectRoot, 'run.js');
 
-  exec(`node ${runScriptPath} ${token}`, async (error, stdout, stderr) => {
+  exec(`node ${runScriptPath} ${token} ${mode}`, async (error, stdout, stderr) => {
     if (error) {
       console.error(`exec error: ${error}`);
       return res.status(500).send(`Error processing files: ${stderr}`);
     }
     console.log(`stdout: ${stdout}`);
-    console.error(`stderr: ${stderr}`);
+    if (stderr) console.error(`stderr: ${stderr}`);
 
     try {
-        await fs.access(outDir);
+        const outStats = await fs.stat(outDir);
+        if (!outStats.isDirectory()) {
+          return res.status(404).send("Output directory not found.");
+        }
+        
+        // Check if directory has files
+        const files = await fs.readdir(outDir, { recursive: true });
+        console.log('Files in output directory:', files);
+        
+        if (files.length === 0) {
+          return res.status(404).send("No processed files found. The output directory is empty.");
+        }
     } catch (e) {
-        return res.status(404).send("No processed files found to download. Make sure you have uploaded and processed files first.");
+        console.error('Error accessing output directory:', e);
+        return res.status(404).send("No processed files found to download. Make sure you have uploaded files first.");
     }
 
-    const zipPath = path.join(projectRoot, `${token}.zip`);
-    const output = fsSync.createWriteStream(zipPath);
+    // Stream the zip directly to the response without saving to disk
     const archive = archiver('zip', {
       zlib: { level: 9 }
     });
 
-    output.on('close', () => {
-      res.download(zipPath, `${token}.zip`, async (err) => {
-        if (err) {
-          console.error(err);
-        }
-        // Don't delete immediately, let the scheduled cleanup handle it
-      });
-    });
-
+    res.attachment(`processed_${token}.zip`);
+    
     archive.on('error', (err) => {
         console.error('Archiving error:', err);
         res.status(500).send('Error creating zip file.');
     });
 
-    archive.pipe(output);
+    archive.on('warning', (err) => {
+      if (err.code === 'ENOENT') {
+        console.warn('Archive warning:', err);
+      } else {
+        throw err;
+      }
+    });
+
+    archive.on('end', () => {
+      console.log(`Archive streamed: ${archive.pointer()} total bytes`);
+    });
+
+    // Pipe directly to response
+    archive.pipe(res);
+    
+    // Add all files from the output directory
     archive.directory(outDir, false);
-    await archive.finalize();
+    
+    archive.finalize();
   });
 });
 
