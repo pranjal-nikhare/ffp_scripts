@@ -558,7 +558,7 @@ app.post('/process', (req, res) => {
       zlib: { level: 9 }
     });
 
-    res.attachment(`processed_${token}.zip`);
+    res.attachment(`processed_${mode}_${token}.zip`);
     
     archive.on('error', (err) => {
         console.error('Archiving error:', err);
