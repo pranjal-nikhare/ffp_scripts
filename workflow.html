@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SQL Formatter - Module 2</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #f8f9fa;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      color: #333;
+    }
+
+    .container {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 40px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      color: #2c3e50;
+      font-size: 28px;
+      font-weight: 600;
+    }
+
+    .module-badge {
+      background: #007bff;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .module-switcher {
+      margin-bottom: 20px;
+    }
+
+    .switch-btn {
+      display: inline-block;
+      padding: 10px 20px;
+      background: #6c757d;
+      color: white;
+      text-decoration: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      border: none;
+      cursor: pointer;
+    }
+
+    .switch-btn:hover {
+      background: #5a6268;
+    }
+
+    .session-info {
+      color: #6c757d;
+      font-size: 12px;
+      margin-bottom: 20px;
+      padding: 10px 12px;
+      background: #f8f9fa;
+      border-radius: 4px;
+      border-left: 3px solid #dee2e6;
+    }
+
+    .session-token {
+      font-family: 'Courier New', monospace;
+      color: #495057;
+      font-weight: 500;
+    }
+
+    .form-section {
+      margin-bottom: 30px;
+    }
+
+    .form-title {
+      font-size: 14px;
+      color: #495057;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    .file-input-wrapper {
+      position: relative;
+      overflow: hidden;
+      display: inline-block;
+      width: 100%;
+      margin-bottom: 12px;
+    }
+
+    .file-input-wrapper input[type=file] {
+      position: absolute;
+      left: -9999px;
+    }
+
+    .file-input-label {
+      display: block;
+      padding: 16px;
+      background: #ffffff;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s ease;
+      color: #495057;
+      font-weight: 400;
+      font-size: 14px;
+    }
+
+    .file-input-label:hover {
+      background: #f8f9fa;
+      border-color: #adb5bd;
+    }
+
+    .file-input-label.has-files {
+      background: #f8f9fa;
+      border-color: #6c757d;
+    }
+
+    .selected-files {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #6c757d;
+      padding: 8px 12px;
+      background: #f8f9fa;
+      border-radius: 4px;
+      line-height: 1.5;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px 20px;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: #ffffff;
+      color: #495057;
+    }
+
+    button:hover {
+      background: #f8f9fa;
+      border-color: #adb5bd;
+    }
+
+    button:active {
+      background: #e9ecef;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .upload-btn {
+      margin-bottom: 8px;
+    }
+
+    .process-btn {
+      background: #007bff;
+      color: white;
+      border-color: #007bff;
+    }
+
+    .process-btn:hover {
+      background: #0069d9;
+      border-color: #0062cc;
+    }
+
+    .divider {
+      height: 1px;
+      background: #e9ecef;
+      margin: 30px 0;
+    }
+
+    .button-description {
+      font-size: 12px;
+      color: #6c757d;
+      margin-bottom: 8px;
+      text-align: left;
+    }
+
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 999;
+    }
+
+    .overlay.show {
+      display: block;
+      animation: fadeIn 0.2s ease;
+    }
+
+    .popup {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 40px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      z-index: 1000;
+      text-align: center;
+      min-width: 360px;
+    }
+
+    .popup.show {
+      display: block;
+      animation: popIn 0.2s ease;
+    }
+
+    .success-icon {
+      width: 60px;
+      height: 60px;
+      background: #28a745;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      font-size: 32px;
+      color: white;
+    }
+
+    .popup h2 {
+      color: #2c3e50;
+      margin-bottom: 24px;
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 8px;
+      background: #e9ecef;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 20px;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: #28a745;
+      border-radius: 4px;
+      transition: width 0.05s linear;
+      width: 0%;
+    }
+
+    .info-text {
+      font-size: 12px;
+      color: #6c757d;
+      margin-top: 24px;
+      text-align: center;
+      padding-top: 16px;
+      border-top: 1px solid #e9ecef;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes popIn {
+      from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>SQL Formatter</h1>
+      <span class="module-badge">Module 2</span>
+    </div>
+
+    <div class="module-switcher">
+      <a href="/" class="switch-btn">← Switch to Module 1</a>
+    </div>
+
+    <div class="session-info">
+      Session ID: <span class="session-token" id="sessionToken">Loading...</span>
+    </div>
+
+    <div class="form-section">
+      <div class="form-title">Upload SQL Files</div>
+      <form id="uploadForm" enctype="multipart/form-data">
+        <div class="file-input-wrapper">
+          <input type="file" name="files" id="fileInput" multiple="multiple" accept=".sql" />
+          <label for="fileInput" class="file-input-label" id="fileLabel">
+            Choose SQL files to format
+          </label>
+        </div>
+        <div class="selected-files" id="selectedFiles" style="display: none;"></div>
+        <button type="submit" class="upload-btn" id="uploadBtn">Upload Files</button>
+      </form>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="form-section">
+      <div class="form-title">Format SQL Files</div>
+      <div class="button-description">Format SQL with proper indentation and keyword casing</div>
+      <form action="/workflow/process_module2" method="post">
+        <button type="submit" class="process-btn">Format & Download</button>
+      </form>
+    </div>
+
+    <div class="info-text">
+      Note: Uploaded files are automatically deleted after 3 minutes
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay"></div>
+  <div class="popup" id="popup">
+    <div class="success-icon">✓</div>
+    <h2>Files Uploaded Successfully</h2>
+    <div class="progress-bar-container">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+  </div>
+
+  <script>
+    // Get session token from cookie
+    function getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
+    const sessionToken = getCookie('session_token');
+    if (sessionToken) {
+      document.getElementById('sessionToken').textContent = sessionToken;
+    }
+
+    const fileInput = document.getElementById('fileInput');
+    const fileLabel = document.getElementById('fileLabel');
+    const selectedFiles = document.getElementById('selectedFiles');
+    const uploadBtn = document.getElementById('uploadBtn');
+
+    fileInput.addEventListener('change', (e) => {
+      const files = e.target.files;
+      if (files.length > 0) {
+        fileLabel.classList.add('has-files');
+        fileLabel.textContent = files.length + ' file(s) selected';
+        selectedFiles.style.display = 'block';
+        selectedFiles.textContent = Array.from(files).map(f => f.name).join(', ');
+      } else {
+        fileLabel.classList.remove('has-files');
+        fileLabel.textContent = 'Choose SQL files to format';
+        selectedFiles.style.display = 'none';
+        selectedFiles.textContent = '';
+      }
+    });
+
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const formData = new FormData();
+      const files = fileInput.files;
+      
+      if (files.length === 0) {
+        alert('Please select files to upload');
+        return;
+      }
+
+      uploadBtn.disabled = true;
+      const originalText = uploadBtn.textContent;
+      uploadBtn.textContent = 'Uploading...';
+      
+      for (let i = 0; i < files.length; i++) {
+        formData.append('files', files[i]);
+      }
+      
+      try {
+        const response = await fetch('/workflow/upload_module2', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (response.ok) {
+          showSuccessPopup();
+        } else {
+          alert('Upload failed. Please try again.');
+          uploadBtn.disabled = false;
+          uploadBtn.textContent = originalText;
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Upload failed. Please try again.');
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = originalText;
+      }
+    });
+
+    function showSuccessPopup() {
+      document.getElementById('overlay').classList.add('show');
+      document.getElementById('popup').classList.add('show');
+      
+      const progressBar = document.getElementById('progressBar');
+      let progress = 0;
+      const duration = 1000;
+      const interval = 20;
+      const increment = (100 / duration) * interval;
+      
+      const progressInterval = setInterval(() => {
+        progress += increment;
+        progressBar.style.width = progress + '%';
+        
+        if (progress >= 100) {
+          clearInterval(progressInterval);
+          setTimeout(() => {
+            document.getElementById('overlay').classList.remove('show');
+            document.getElementById('popup').classList.remove('show');
+            progressBar.style.width = '0%';
+            
+            document.getElementById('uploadForm').reset();
+            fileLabel.classList.remove('has-files');
+            fileLabel.textContent = 'Choose SQL files to format';
+            selectedFiles.style.display = 'none';
+            selectedFiles.textContent = '';
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = 'Upload Files';
+          }, 200);
+        }
+      }, interval);
+    }
+  </script>
+</body>
+</html>

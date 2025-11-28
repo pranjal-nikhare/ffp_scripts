@@ -10,7 +10,7 @@ if (!fs.existsSync(OUTPUT_FOLDER)) {
     fs.mkdirSync(OUTPUT_FOLDER, { recursive: true });
 }
 
-function cleanSQL(sqlContent) {
+export function normalizeSql(sqlContent) {
     let cleaned = sqlContent
         .replace(/--.*$/gm, '')
         .replace(/\/\*[\s\S]*?\*\//g, '');
@@ -66,7 +66,7 @@ function processFiles() {
                     const sqlContent = fs.readFileSync(inputPath, 'utf8');
 
                     // Clean the SQL
-                    const cleanedSQL = cleanSQL(sqlContent);
+                    const cleanedSQL = normalizeSql(sqlContent);
 
                     // Write to output folder
                     fs.writeFileSync(outputPath, cleanedSQL, 'utf8');
@@ -94,4 +94,4 @@ function processFiles() {
 }
 
 // Run the script
-processFiles();
+// processFiles();
