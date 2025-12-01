@@ -525,6 +525,7 @@ app.get('/', (req, res) => {
       <button class="tab-btn" onclick="switchTab(2)">Parameterize DB & Tables</button>
       <button class="tab-btn" onclick="switchTab(3)">Normalize SQL</button>
       <button class="tab-btn" onclick="switchTab(4)">Format SQL</button>
+      <button class="tab-btn" onclick="switchTab(5)">SET Variables</button>
     </div>
 
     <div id="tab1" class="tab-content active">
@@ -626,9 +627,49 @@ app.get('/', (req, res) => {
       </div>
     </div>
 
-    <div class="info-text">
-      Note: Uploaded files are automatically deleted after 3 minutes
-    </div>
+<div id="tab5" class="tab-content">
+  <style>
+    #jsonTextInputModule3 {
+      width: 100%;
+      height: 150px;
+      resize: none;
+      box-sizing: border-box;
+    }
+
+    #responseOutputModule3 {
+      width: 100%;
+      max-height: 120px;
+      overflow-y: auto;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      background-color: #f5f5f5;
+      border: 1px solid #ddd;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+  </style>
+
+  <div class="form-section">
+    <div class="form-title">paste json to process</div>
+    <form id="textProcessFormModule3">
+      <textarea id="jsonTextInputModule3" class="text-input" placeholder="Paste your JSON here"></textarea>
+      <button type="button" class="upload-btn" id="processTextBtnModule3">Process</button>
+    </form>
+  </div>
+  
+
+
+  <div class="form-section" id="responseSectionModule3" style="display:none;">
+    <div class="form-title">Response</div>
+    <pre id="responseOutputModule3" class="response-box"></pre>
+    <button type="button" class="normalize-btn" id="copyResponseBtnModule3">Copy Response</button>
+  </div>
+
+  <div class="divider"></div>
+  <div class="form-section">
+    
+  </div>
+</div>
   </div>
 
   <div class="overlay" id="overlay"></div>
@@ -696,7 +737,7 @@ app.get('/', (req, res) => {
       const progressBar = document.getElementById('progressBar');
       let progress = 0;
       const duration = 1000;
-      const interval = 20;
+      const interval = 10;
       const increment = (100 / duration) * interval;
       
       const progressInterval = setInterval(() => {
@@ -820,6 +861,44 @@ app.get('/', (req, res) => {
         display.textContent = '';
       }
     }
+
+    // --- TAB 5 SETUP ---
+    const jsonTextInputModule3 = document.getElementById('jsonTextInputModule3');
+    const processTextBtnModule3 = document.getElementById('processTextBtnModule3');
+    const responseSectionModule3 = document.getElementById('responseSectionModule3');
+    const responseOutputModule3 = document.getElementById('responseOutputModule3');
+    const copyResponseBtnModule3 = document.getElementById('copyResponseBtnModule3');
+
+    processTextBtnModule3.addEventListener('click', async () => {
+      const text = jsonTextInputModule3.value.trim();
+      if (!text) return;
+
+      processTextBtnModule3.disabled = true;
+      processTextBtnModule3.textContent = 'Processing...';
+
+      try {
+        const res = await fetch('/workflow/set_variables', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+
+        const data = await res.json();
+        responseOutputModule3.textContent = data.result || '';
+        responseSectionModule3.style.display = 'block';
+      } catch (err) {
+        responseOutputModule3.textContent = 'Error processing text';
+        responseSectionModule3.style.display = 'block';
+      }
+
+      processTextBtnModule3.disabled = false;
+      processTextBtnModule3.textContent = 'Process';
+    });
+
+    copyResponseBtnModule3.addEventListener('click', () => {
+      const content = responseOutputModule3.textContent;
+      navigator.clipboard.writeText(content);
+    });
   </script>
 </body>
 </html>

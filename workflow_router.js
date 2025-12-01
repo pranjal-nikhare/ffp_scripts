@@ -67,7 +67,7 @@ router.post('/upload_module2', (req, res) => {
 
             return res.status(400).json({
               success: false,
-              message: `Invalid JSON file (${file.originalname}): ${check.error}`
+              message: `Uhh! Invalid JSON file (${file.originalname}): ${check.error}`
             });
           }
         }
@@ -235,108 +235,117 @@ router.post("/process_module2", async (req, res) => {
   }
 });
 
+router.post('/set_variables', async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text) {
+      return res.status(400).json({ success: false, result: 'No JSON received' });
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (err) {
+      return res.status(400).json({ success: false, result: 'Invalid JSON format' });
+    }
+
+    if (!Array.isArray(parsed) || !parsed[0]?.params?.sql_params) {
+      return res.status(400).json({
+        success: false,
+        result: 'JSON does not contain params.sql_params structure'
+      });
+    }
+
+    const sqlParams = parsed[0].params.sql_params;
+    let output = '';
+
+    for (const [key, value] of Object.entries(sqlParams)) {
+      let raw = value;
+
+      // CASE 1: 'wrapped in single quotes'
+      // Example: "'TOTAL'"  → TOTAL → SET key = 'TOTAL';
+      if (/^'.*'$/.test(raw)) {
+        const clean = raw.slice(1, -1);
+        output += `SET ${key} = '${clean}';\n`;
+        continue;
+      }
+
+      // CASE 2: Numeric
+      if (!isNaN(raw)) {
+        output += `SET ${key} = ${raw};\n`;
+        continue;
+      }
+
+      // CASE 3: Plain identifier (no quotes)
+      output += `SET ${key} = ${raw};\n`;
+    }
+
+    return res.json({ success: true, result: output });
+
+  } catch (err) {
+    return res.status(500).json({ success: false, result: 'Internal Server Error' });
+  }
+});
+
+
+// router.post('/set_variables', async (req, res) => {
+//   try {
+//     const { text } = req.body;
+//     if (!text) {
+//       return res.status(400).json({ success: false, result: 'No JSON received' });
+//     }
+
+//     let parsed;
+//     try {
+//       parsed = JSON.parse(text);
+//     } catch (err) {
+//       return res.status(400).json({ success: false, result: 'Invalid JSON format' });
+//     }
+
+//     if (!Array.isArray(parsed) || !parsed[0]?.params?.sql_params) {
+//       return res.status(400).json({
+//         success: false,
+//         result: 'JSON does not contain params.sql_params structure'
+//       });
+//     }
+
+//     const sqlParams = parsed[0].params.sql_params;
+//     let output = '';
+
+//     for (const [key, value] of Object.entries(sqlParams)) {
+//       let finalValue = value;
+
+//       // CASE 1: value already contains single quotes → remove them
+//       if (/^'.*'$/.test(finalValue)) {
+//         finalValue = finalValue.slice(1, -1);
+//         output += `SET ${key} = '${finalValue}';\n`;
+//         continue;
+//       }
+
+//       // CASE 2: numeric → use number
+//       if (!isNaN(finalValue)) {
+//         output += `SET ${key} = ${finalValue};\n`;
+//         continue;
+//       }
+
+//       // CASE 3: all other strings → wrap in single quotes
+//       output += `SET ${key} = '${finalValue}';\n`;
+//     }
+
+//     return res.json({ success: true, result: output });
+
+//   } catch (err) {
+//     return res.status(500).json({ success: false, result: 'Internal Server Error' });
+//   }
+// });
+
+
 
 
 // GET /users/:id
-router.get("/2", (req, res) => {
-  res.send(`User with ID: `);
-});
+// router.get("/2", (req, res) => {
+//   res.send(`User with ID: `);
+// });
 
-// module.exports = router;
 
 export default router;
-
-
-// /**
-//  * @param {string} sql 
-//  * @param {string} language 
-//  * @param {object} options 
-//  * @returns {string|null} 
-//  */
-// function trySqlFormat(sql, language, options = {}) {
-//   try {
-//     const defaultOptions = {
-//       language: language,
-//       tabWidth: 2,
-//       useTabs: false,
-//       keywordCase: "upper",
-//       indentStyle: "standard",
-//       logicalOperatorNewline: "before",
-//       expressionWidth: 80,
-//       linesBetweenQueries: 2,
-//       ...options
-//     };
-    
-//     return format(sql, defaultOptions);
-//   } catch (error) {
-//     console.error(`Failed to format with ${language} dialect:`, error.message);
-//     return null;
-//   }
-// }
-
-// /**
-//  * @param {string} sql
-//  * @param {object} options
-//  * @returns {{formatted: string, method: string}}
-//  */
-// function formatSql(sql, options = {}) {
-//   // Validate input
-//   if (!sql || typeof sql !== 'string') {
-//     return { 
-//       formatted: sql || '', 
-//       method: 'none (invalid input)' 
-//     };
-//   }
-
-//   // List of SQL dialects to try in order of likelihood
-//   const dialects = [
-//     'snowflake',  
-//     'postgresql', 
-//     'mysql',      
-//     'sql',        
-//     'tsql',       
-//     'plsql'       
-//   ];
-
-//   // Try each dialect
-//   for (const dialect of dialects) {
-//     const result = trySqlFormat(sql, dialect, options);
-//     if (result) {
-//       return { 
-//         formatted: result, 
-//         method: `sql-formatter (${dialect})` 
-//       };
-//     }
-//   }
-
-//   // If all dialects fail, return original SQL
-//   console.warn('All formatting attempts failed. Returning original SQL.');
-//   return { 
-//     formatted: sql, 
-//     method: 'none (fallback to original)' 
-//   };
-// }
-
-// /**
-//  * @param {string} formatted - The formatted SQL
-//  * @param {string} method - The method used for formatting
-//  */
-// function outputFormattedSql(formatted, method) {
-//   // console.log('='.repeat(80));
-//   // console.log(`Formatting Method: ${method}`);
-//   // console.log('='.repeat(80));
-//   console.log(formatted);
-//   // console.log('='.repeat(80));
-// }
-
-// Execute the formatting
-// (() => {
-//   try {
-//     const { formatted, method } = formatSql(rawSql);
-//     outputFormattedSql(formatted, method);
-//   } catch (error) {
-//     console.error('Unexpected error in main execution:', error);
-//     console.log('\nOriginal SQL:');
-//     console.log(rawSql);
-//   }
-// })();
