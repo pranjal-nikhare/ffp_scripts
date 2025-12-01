@@ -620,7 +620,6 @@ app.get('/', (req, res) => {
       <div class="divider"></div>
       <div class="form-section">
         <div class="form-title">Format SQL Files</div>
-        <div class="button-description">Format SQL with proper indentation and keyword casing</div>
         <form action="/workflow/process_module2" method="post">
           <button type="submit" class="normalize-btn">Format & Download</button>
         </form>

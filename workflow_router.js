@@ -13,6 +13,7 @@ import { get_file_name } from './get_json_data.js';
 import { get_query } from './get_json_data.js';
 // import { formatSql } from './sql_formatter.js';
 import { processFile } from './temp.js';
+import { validateJsonFile } from './utils/json_validator_formatter.js';
 
 const router = express.Router();
 
@@ -57,17 +58,31 @@ router.post('/upload_module2', (req, res) => {
       }
 
       try {
-        // Your logic after upload
-        await scheduleCleanup(req.session_token);
+        // Validate all uploaded JSON files
+        for (const file of req.files || []) {
+          const check = await validateJsonFile(file.path);
 
-        res.json({
+          if (!check.valid) {
+            console.error(`❌ Validation failed for ${file.originalname}:`, check.error);
+
+            return res.status(400).json({
+              success: false,
+              message: `Invalid JSON file (${file.originalname}): ${check.error}`
+            });
+          }
+        }
+
+        // If all files are valid
+        scheduleCleanup(req.session_token);
+
+        return res.json({
           success: true,
-          message: 'Files uploaded for module-2 successfully'
+          message: 'Files uploaded and validated successfully'
         });
 
       } catch (innerErr) {
         console.error("Processing Error:", innerErr);
-        res.status(500).json({
+        return res.status(500).json({
           success: false,
           message: 'Internal server error while processing files'
         });
@@ -76,7 +91,7 @@ router.post('/upload_module2', (req, res) => {
 
   } catch (outerErr) {
     console.error("Unexpected Error:", outerErr);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Unexpected server error'
     });
@@ -99,15 +114,23 @@ export function reverseVariables(sqlText) {
   });
 }
 
-// Remove prefix before first double underscore: a__b -> b
-export function removeDoubleUnderscorePrefix(str) {
-  if (!str || typeof str !== "string") return str;
+// Remove prefix before first double underscore: (a__b -> b) ---> this one is for individual word
+// export function removeDoubleUnderscorePrefix(str) {
+//   if (!str || typeof str !== "string") return str;
 
-  // If no "__" exists, return original
-  if (!str.includes("__")) return str;
+//   // If no "__" exists, return original
+//   if (!str.includes("__")) return str;
 
-  // Split only at the FIRST occurrence of "__"
-  return str.split(/__(.+)/)[1];
+//   // Split only at the FIRST occurrence of "__"
+//   return str.split(/__(.+)/)[1];
+// }
+
+
+export function removeDoubleUnderscorePrefix(text) {
+  if (!text || typeof text !== "string") return text;
+
+  // Replace ANYTHING__SOMETHING with SOMETHING
+  return text.replace(/([A-Za-z0-9_]+)__([A-Za-z0-9_]+)/g, "$2");
 }
 
 router.post("/process_module2", async (req, res) => {
@@ -150,13 +173,10 @@ router.post("/process_module2", async (req, res) => {
 
         if (!attribute || !query) continue;
 
-        // 🟢 PREVIOUS FIX: Clean attribute name
         attribute = removeDoubleUnderscorePrefix(attribute);
 
-        // 1️⃣ Reverse variables
         query = reverseVariables(query);
 
-        // 2️⃣ Write temp file
         const tempFilePath = path.join(folderPath, `_temp_${attribute}.sql`);
         await fs.writeFile(tempFilePath, query, "utf8");
 
@@ -172,11 +192,9 @@ router.post("/process_module2", async (req, res) => {
       }
     }
 
-    // 🟢 NEW: Stream the output directory as a ZIP file download
-    // Set headers to tell the browser this is a file download
     res.attachment(`processed_files_${token}.zip`);
     
-    // Create a zip archive
+
     const archive = archiver('zip', {
       zlib: { level: 9 } // Sets the compression level
     });
