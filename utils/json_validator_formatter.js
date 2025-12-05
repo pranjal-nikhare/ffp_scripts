@@ -33,12 +33,19 @@ export async function validateJsonFile(filePath) {
         return { valid: false, error: `Missing 'attribute' at index ${i}.` };
       }
 
-      if (!item.value || typeof item.value !== "object") {
-        return { valid: false, error: `Missing 'value' object at index ${i}.` };
+      if (!("value" in item)) {
+        return { valid: false, error: `Missing 'value' at index ${i}.` };
       }
 
-      if (!("query" in item.value)) {
-        return { valid: false, error: `Missing 'value.query' at index ${i}.` };
+      // NEW: Handle both string and object values
+      if (typeof item.value === "object" && item.value !== null) {
+        // If value is an object, check for query property
+        if (!("query" in item.value)) {
+          return { valid: false, error: `Missing 'value.query' at index ${i}.` };
+        }
+      } else if (typeof item.value !== "string") {
+        // If value is not an object, it should be a string
+        return { valid: false, error: `'value' at index ${i} must be either a string or an object with 'query'.` };
       }
     }
 

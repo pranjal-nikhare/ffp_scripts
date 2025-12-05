@@ -133,73 +133,184 @@ export function removeDoubleUnderscorePrefix(text) {
   return text.replace(/([A-Za-z0-9_]+)__([A-Za-z0-9_]+)/g, "$2");
 }
 
+// router.post("/process_module2", async (req, res) => {
+//   const token = req.session_token;
+
+//   const inputDir = path.join(
+//     projectRoot,
+//     "module2_files",
+//     "input_files",
+//     token
+//   );
+  
+//   // This folder will contain the generated SQL files we want to zip
+//   const outputDir = path.join(
+//     projectRoot,
+//     "module2_files",
+//     "output_files",
+//     token
+//   );
+
+//   try {
+//     const files = await fs.readdir(inputDir);
+
+//     for (const file of files) {
+//       const inputFile = path.join(inputDir, file);
+//       const jsonData = JSON.parse(await fs.readFile(inputFile, "utf8"));
+//       const mainName = jsonData.definition?.name || file.replace(".json", "");
+      
+//       const folderPath = path.join(outputDir, mainName);
+//       await fs.mkdir(folderPath, { recursive: true });
+
+//       const count = await get_calculation_attributes_count(inputFile);
+
+//       for (let i = 1; i < count; i++) {
+//         const queryObj = await get_query(inputFile, i);
+//         const fileNameObj = await get_file_name(inputFile, i);
+
+//         let attribute = fileNameObj[`calculation_attributes.${i}.attribute`];
+//         let query = queryObj[`calculation_attributes.${i}.value.query`];
+
+//         if (!attribute || !query) continue;
+
+//         attribute = removeDoubleUnderscorePrefix(attribute);
+
+//         query = reverseVariables(query);
+
+//         const tempFilePath = path.join(folderPath, `_temp_${attribute}.sql`);
+//         await fs.writeFile(tempFilePath, query, "utf8");
+
+//         // 3️⃣ Format
+//         const result = await processFile(tempFilePath);
+//         await fs.unlink(tempFilePath);
+
+//         const finalSql = result?.formatted || query;
+//         const sqlFilePath = path.join(folderPath, `${attribute}.sql`);
+
+//         // 5️⃣ Save formatted SQL
+//         await fs.writeFile(sqlFilePath, finalSql, "utf8");
+//       }
+//     }
+
+//     res.attachment(`processed_files_${token}.zip`);
+    
+
+//     const archive = archiver('zip', {
+//       zlib: { level: 9 } // Sets the compression level
+//     });
+
+//     // Good practice: handle archive warnings/errors
+//     archive.on('warning', function(err) {
+//       if (err.code === 'ENOENT') {
+//         console.warn(err);
+//       } else {
+//         throw err;
+//       }
+//     });
+
+//     archive.on('error', function(err) {
+//       console.error("Archiver error:", err);
+//       res.status(500).send({ error: err.message });
+//     });
+
+//     // Pipe the archive data to the response
+//     archive.pipe(res);
+
+//     // Append the entire output directory to the zip
+//     // 'false' as the second argument ensures files are put at the root of the zip 
+//     // or preserves the structure inside outputDir correctly without adding 'outputDir' as a parent folder
+//     archive.directory(outputDir, false); 
+
+//     // Finalize the archive (this finishes the stream)
+//     await archive.finalize();
+
+//     // Note: Do not use res.send() here, as archive.pipe(res) handles the response.
+
+//   } catch (err) {
+//     console.error("Error processing files:", err);
+//     // Only send error header if headers haven't been sent yet
+//     if (!res.headersSent) {
+//       res.status(500).send("Error processing files");
+//     }
+//   }
+// });
+
+//version 2 - parallel processing
+
 router.post("/process_module2", async (req, res) => {
   const token = req.session_token;
 
-  const inputDir = path.join(
-    projectRoot,
-    "module2_files",
-    "input_files",
-    token
-  );
-  
-  // This folder will contain the generated SQL files we want to zip
-  const outputDir = path.join(
-    projectRoot,
-    "module2_files",
-    "output_files",
-    token
-  );
+  const inputDir = path.join(projectRoot, "module2_files", "input_files", token);
+  const outputDir = path.join(projectRoot, "module2_files", "output_files", token);
 
   try {
     const files = await fs.readdir(inputDir);
 
-    for (const file of files) {
-      const inputFile = path.join(inputDir, file);
-      const jsonData = JSON.parse(await fs.readFile(inputFile, "utf8"));
-      const mainName = jsonData.definition?.name || file.replace(".json", "");
-      
-      const folderPath = path.join(outputDir, mainName);
-      await fs.mkdir(folderPath, { recursive: true });
+    // 🚀 OPTIMIZATION 1: Process all files in parallel
+    await Promise.all(
+      files.map(async (file) => {
+        const inputFile = path.join(inputDir, file);
+        
+        // Read file once and parse
+        const jsonData = JSON.parse(await fs.readFile(inputFile, "utf8"));
+        const mainName = jsonData.definition?.name || file.replace(".json", "");
+        
+        const folderPath = path.join(outputDir, mainName);
+        await fs.mkdir(folderPath, { recursive: true });
 
-      const count = await get_calculation_attributes_count(inputFile);
+        // 🚀 OPTIMIZATION 2: Extract all attributes at once instead of multiple file reads
+        const attrs = jsonData.calculation_attributes;
+        if (!Array.isArray(attrs)) return;
 
-      for (let i = 1; i < count; i++) {
-        const queryObj = await get_query(inputFile, i);
-        const fileNameObj = await get_file_name(inputFile, i);
+        // 🚀 OPTIMIZATION 3: Process all queries in parallel for this file
+        const queryPromises = attrs
+          .slice(1) // Skip index 0
+          .map(async (item, idx) => {
+            const attribute = item?.attribute;
+            let query = item?.value?.query;
 
-        let attribute = fileNameObj[`calculation_attributes.${i}.attribute`];
-        let query = queryObj[`calculation_attributes.${i}.value.query`];
+            if (!attribute || !query) return;
 
-        if (!attribute || !query) continue;
+            const cleanAttribute = removeDoubleUnderscorePrefix(attribute);
+            query = reverseVariables(query);
 
-        attribute = removeDoubleUnderscorePrefix(attribute);
+            const tempFilePath = path.join(folderPath, `_temp_${cleanAttribute}.sql`);
+            
+            try {
+              // Write temp file
+              await fs.writeFile(tempFilePath, query, "utf8");
+              
+              // Format
+              const result = await processFile(tempFilePath);
+              
+              // Clean up temp file
+              await fs.unlink(tempFilePath);
 
-        query = reverseVariables(query);
+              const finalSql = result?.formatted || query;
+              const sqlFilePath = path.join(folderPath, `${cleanAttribute}.sql`);
 
-        const tempFilePath = path.join(folderPath, `_temp_${attribute}.sql`);
-        await fs.writeFile(tempFilePath, query, "utf8");
+              // Save formatted SQL
+              await fs.writeFile(sqlFilePath, finalSql, "utf8");
+            } catch (err) {
+              console.error(`Error processing ${cleanAttribute}:`, err);
+              // Clean up temp file on error
+              try {
+                await fs.unlink(tempFilePath);
+              } catch {}
+            }
+          });
 
-        // 3️⃣ Format
-        const result = await processFile(tempFilePath);
-        await fs.unlink(tempFilePath);
+        await Promise.all(queryPromises);
+      })
+    );
 
-        const finalSql = result?.formatted || query;
-        const sqlFilePath = path.join(folderPath, `${attribute}.sql`);
-
-        // 5️⃣ Save formatted SQL
-        await fs.writeFile(sqlFilePath, finalSql, "utf8");
-      }
-    }
-
+    // Set response headers
     res.attachment(`processed_files_${token}.zip`);
-    
 
     const archive = archiver('zip', {
-      zlib: { level: 9 } // Sets the compression level
+      zlib: { level: 6 } // 🚀 OPTIMIZATION 4: Lower compression = faster (6 is good balance)
     });
 
-    // Good practice: handle archive warnings/errors
     archive.on('warning', function(err) {
       if (err.code === 'ENOENT') {
         console.warn(err);
@@ -210,25 +321,17 @@ router.post("/process_module2", async (req, res) => {
 
     archive.on('error', function(err) {
       console.error("Archiver error:", err);
-      res.status(500).send({ error: err.message });
+      if (!res.headersSent) {
+        res.status(500).send({ error: err.message });
+      }
     });
 
-    // Pipe the archive data to the response
     archive.pipe(res);
-
-    // Append the entire output directory to the zip
-    // 'false' as the second argument ensures files are put at the root of the zip 
-    // or preserves the structure inside outputDir correctly without adding 'outputDir' as a parent folder
-    archive.directory(outputDir, false); 
-
-    // Finalize the archive (this finishes the stream)
+    archive.directory(outputDir, false);
     await archive.finalize();
-
-    // Note: Do not use res.send() here, as archive.pipe(res) handles the response.
 
   } catch (err) {
     console.error("Error processing files:", err);
-    // Only send error header if headers haven't been sent yet
     if (!res.headersSent) {
       res.status(500).send("Error processing files");
     }
